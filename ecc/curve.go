@@ -13,7 +13,7 @@ type ICurve interface {
 	INF() *Point
 	IsOnCurve(P *Point) bool
 	AddPoint(P, Q *Point) (*Point, error)
-	MulPoint(d big.Int, P *Point) (*Point, error)
+	MulPoint(d *big.Int, P *Point) (*Point, error)
 	NegPoint(P *Point) (*Point, error)
 	ComputeY(x big.Int) big.Int
 }
@@ -38,19 +38,25 @@ func (p *Point) Eq(other *Point) bool {
 
 func (p *Point) Neg() *Point {
 	res, err := p.Curve.NegPoint(p)
-	log.Fatal(err)
+	if err != nil {
+		log.Fatal(err)
+	}
 	return res
 }
 
 func (p *Point) Add(other *Point) *Point {
 	res, err := p.Curve.AddPoint(p, other)
-	log.Fatal(err)
+	if err != nil {
+		log.Fatal(err)
+	}
 	return res
 }
 
-func (p *Point) Mul(scalar big.Int) *Point {
+func (p *Point) Mul(scalar *big.Int) *Point {
 	res, err := p.Curve.MulPoint(scalar, p)
-	log.Fatal(err)
+	if err != nil {
+		log.Fatal(err)
+	}
 	return res
 }
 
@@ -73,7 +79,7 @@ func (c *Curve) INF() *Point {
 }
 
 func (c *Curve) IsOnCurve(P *Point) bool {
-	if P.Curve != c {
+	if P.Curve.String() != c.Name {
 		return false
 	}
 	return P.IsAtInfinity() || c.isOnCurve(P)
@@ -121,7 +127,7 @@ func (c *Curve) doublePoint(P *Point) *Point {
 	panic("should not be called")
 }
 
-func (c *Curve) MulPoint(d big.Int, P *Point) (*Point, error) {
+func (c *Curve) MulPoint(d *big.Int, P *Point) (*Point, error) {
 	if !c.IsOnCurve(P) {
 		return &Point{}, errors.New("the point is not on the curve")
 	}
@@ -135,14 +141,13 @@ func (c *Curve) MulPoint(d big.Int, P *Point) (*Point, error) {
 	if isNegScalar {
 		negOne := new(big.Int)
 		negOne.SetInt64(-1)
-		d = *d.Mul(&d, negOne)
+		d.Mul(d, negOne)
 	}
 	tmp := P
-	one := new(big.Int)
-	one.SetInt64(1)
 
 	for d.Sign() != 0 {
-		if d.And(&d, one) == one {
+		toCompare := new(big.Int).And(d, Hex2int("0x1"))
+		if toCompare.String() == GetInt(1).String() {
 			res, err = c.AddPoint(res, tmp)
 			if err != nil {
 				return &Point{}, err
@@ -152,7 +157,7 @@ func (c *Curve) MulPoint(d big.Int, P *Point) (*Point, error) {
 		if err != nil {
 			return &Point{}, err
 		}
-		d = *d.Rsh(&d, 1)
+		d.Rsh(d, 1)
 	}
 	if isNegScalar {
 		return res.Neg(), nil
@@ -206,62 +211,86 @@ func (mc *MontgomeryCurve) isOnCurve(P *Point) bool {
 		right big.Int
 		res   big.Int
 	)
-	left.Mul(new(big.Int).Mul(mc.B, P.Y), P.Y)
-	right.Mul(new(big.Int).Mul(P.X, P.X), P.X)
-	right.Add(&right, new(big.Int).Mul(mc.A, new(big.Int).Mul(P.X, P.X)))
-	right.Add(&right, P.X)
+	left.Mul(P.Y, P.Y).Mul(&left, mc.B)
+	// left.Mul(new(big.Int).Mul(mc.B, P.Y), P.Y)
+	right.Mul(P.X, P.X).Mul(&right, P.X).Add(&right, new(big.Int).Mul(new(big.Int).Mul(mc.A, P.X), P.X)).Add(&right, P.X)
+	// right.Mul(new(big.Int).Mul(P.X, P.X), P.X)
+	// right.Add(&right, new(big.Int).Mul(mc.A, new(big.Int).Mul(P.X, P.X)))
+	// right.Add(&right, P.X)
 	res.Sub(&left, &right).Mod(&res, mc.P)
 	return res.Sign() == 0
 }
 
-//
-// func (mc *MontgomeryCurve) addPoint(P, Q *Point) *Point {
-// 	// s = (yP - yQ) / (xP - xQ)
-// 	// xR = b * s^2 - a - xP - xQ
-// 	// yR = yP + s * (xR - xP)
-// 	deltaX := *P.X - *Q.X
-// 	deltaY := *P.Y - *Q.Y
-// 	modInv, err := Modinv(deltaX, *mc.P)
-// 	if err != nil {
-// 		log.Fatal(err)
-// 	}
-// 	s := deltaY * modInv
-// 	resX := (*mc.B*s*s - *mc.A - *P.X - *Q.X) % *mc.P
-// 	resY := (*P.Y + s*(resX-*P.X)) % *mc.P
-// 	return (&Point{&resX, &resY, mc}).Neg()
-// }
-//
-// func (mc *MontgomeryCurve) doublePoint(P *Point) *Point {
-// 	// s = (3 * xP^2 + 2 * a * xP + 1) / (2 * b * yP)
-// 	// xR = b * s^2 - a - 2 * xP
-// 	// yR = yP + s * (xR - xP)
-// 	up := 3**P.X**P.X + 2**mc.A**P.X + 1
-// 	down := 2 * *mc.B * *P.Y
-// 	modInv, err := Modinv(down, *mc.P)
-// 	if err != nil {
-// 		log.Fatal(err)
-// 	}
-// 	s := up * modInv
-// 	resX := (*mc.B*s*s - *mc.A - 2**P.X) % *mc.P
-// 	resY := (*P.Y + s*(resX-*P.X)) % *mc.P
-// 	return (&Point{&resX, &resY, mc}).Neg()
-// }
-//
-// func (mc *MontgomeryCurve) negPoint(P *Point) *Point {
-// 	py := -(*P.Y) % *mc.P
-// 	return &Point{P.X, &py, mc}
-// }
-//
-// func (mc *MontgomeryCurve) ComputeY(x big.Int) big.Int {
-// 	right := (x*x*x + *mc.A*x*x + x) % *mc.P
-// 	invB, err := Modinv(*mc.B, *mc.P)
-// 	if err != nil {
-// 		log.Fatal(err)
-// 	}
-// 	right = (right * invB) % *mc.P
-// 	y := Modsqrt(right, *mc.P)
-// 	return y
-// }
+func (mc *MontgomeryCurve) addPoint(P, Q *Point) *Point {
+	// s = (yP - yQ) / (xP - xQ)
+	// xR = b * s^2 - a - xP - xQ
+	// yR = yP + s * (xR - xP)
+	deltaX := new(big.Int).Sub(P.X, Q.X) // *P.X - *Q.X
+
+	deltaY := new(big.Int).Sub(P.Y, Q.Y) // *P.Y - *Q.Y
+	// modInv, err := Modinv(deltaX, *mc.P)
+	modInv := new(big.Int).ModInverse(deltaX, mc.P)
+
+	s := new(big.Int).Mul(deltaY, modInv) // deltaY * modInv
+	// resX := (*mc.B*s*s - *mc.A - *P.X - *Q.X) % *mc.P
+	// resY := (*P.Y + s*(resX-*P.X)) % *mc.P
+	var (
+		resX big.Int
+		resY big.Int
+	)
+	resX.Mul(mc.B, s).Mul(&resX, s).Sub(&resX, mc.A).Sub(&resX, P.X).Sub(&resX, Q.X).Mod(&resX, mc.P)
+	resY.Sub(&resX, P.X).Mul(&resY, s).Add(&resY, P.Y).Mod(&resY, mc.P)
+	return (&Point{&resX, &resY, mc}).Neg()
+}
+
+func (mc *MontgomeryCurve) doublePoint(P *Point) *Point {
+	// s = (3 * xP^2 + 2 * a * xP + 1) / (2 * b * yP)
+	// xR = b * s^2 - a - 2 * xP
+	// yR = yP + s * (xR - xP)
+	// up := 3**P.X**P.X + 2**mc.A**P.X + 1
+	// down := 2 * *mc.B * *P.Y
+	// modInv, err := Modinv(down, *mc.P)
+	var (
+		up     big.Int
+		down   big.Int
+		modInv big.Int
+	)
+	up.Mul(P.X, P.X).Mul(&up, GetInt(3)).Add(&up, new(big.Int).Mul(new(big.Int).Mul(mc.A, P.X), GetInt(2))).Add(&up, GetInt(1))
+	down.Mul(GetInt(2), mc.B).Mul(&down, P.Y)
+	modInv.ModInverse(&down, mc.P)
+	s := new(big.Int).Mul(&up, &modInv) // up * modInv
+	// resX := (*mc.B*s*s - *mc.A - 2**P.X) % *mc.P
+	// resY := (*P.Y + s*(resX-*P.X)) % *mc.P
+	var (
+		resX big.Int
+		resY big.Int
+	)
+	resX.Mul(mc.B, s).Mul(&resX, s).Sub(&resX, mc.A).Sub(&resX, new(big.Int).Mul(GetInt(2), P.X)).Mod(&resX, mc.P)
+	resY.Sub(&resX, P.X).Mul(&resY, s).Add(&resY, P.Y).Mod(&resY, mc.P)
+	return (&Point{&resX, &resY, mc}).Neg()
+}
+
+func (mc *MontgomeryCurve) negPoint(P *Point) *Point {
+	py := new(big.Int).Mod(new(big.Int).Neg(P.Y), mc.P) // -(*P.Y) % *mc.P
+	return &Point{P.X, py, mc}
+}
+
+func (mc *MontgomeryCurve) ComputeY(x big.Int) big.Int {
+	// right := (x*x*x + *mc.A*x*x + x) % *mc.P
+	// invB, err := Modinv(*mc.B, *mc.P)
+	// right = (right * invB) % *mc.P
+	// y := Modsqrt(right, *mc.P)
+	var (
+		right big.Int
+		invB  big.Int
+		y     big.Int
+	)
+	right.Mul(&x, &x).Mul(&right, &x).Add(&right, new(big.Int).Mul(new(big.Int).Mul(mc.A, &x), &x)).Add(&right, &x).Mod(&right, mc.P)
+	invB.ModInverse(mc.B, mc.P)
+	right.Mul(&right, &invB).Mod(&right, mc.P)
+	y.ModSqrt(&right, mc.P)
+	return y
+}
 
 func NewCurve25519() *MontgomeryCurve {
 	a := new(big.Int)
