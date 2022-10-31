@@ -2,7 +2,9 @@ package ecc
 
 import (
 	"errors"
+	"fmt"
 	"math"
+	"math/big"
 	"strconv"
 	"strings"
 )
@@ -50,7 +52,7 @@ func Modsqrt(a, p int64) int64 {
 
 	// Partition p-1 to s * 2^e for an odd s (i.e.
 	// reduce all the powers of 2 from p-1)
-	s, e := p-1, 0
+	s, e := p-1, int64(0)
 	for s%2 == 0 {
 		s /= 2
 		e += 1
@@ -78,7 +80,7 @@ func Modsqrt(a, p int64) int64 {
 	r := e
 
 	for {
-		t, m := b, 0
+		t, m := b, int64(0)
 		for _, m = range makeRange(0, int64(r)) {
 			if t == 1 {
 				break
@@ -125,11 +127,14 @@ func IntLenInByte(n int64) int64 {
 	return int64(length)
 }
 
-func Hex2int(hexStr string) int64 {
+func Hex2int(hexStr string) *big.Int {
 	// remove 0x suffix if found in the input string
 	cleaned := strings.Replace(hexStr, "0x", "", -1)
 
 	// base 16 for hexadecimal
-	result, _ := strconv.ParseUint(cleaned, 16, 64)
-	return int64(result)
+	n := new(big.Int)
+	n.SetString(cleaned, 16)
+	res, _ := strconv.ParseUint(cleaned, 16, 0)
+	fmt.Println(res)
+	return n
 }
