@@ -3,7 +3,7 @@ package ecc
 import (
 	crypto "crypto/rand"
 	"crypto/sha1"
-	"io"
+	"encoding/hex"
 	"log"
 	"math/big"
 	"math/rand"
@@ -23,7 +23,7 @@ func NewECDSA() *ECDSA {
 	}
 }
 
-func (ec *ECDSA) Sign(privateKey big.Int, message string) (big.Int, big.Int) {
+func (ec *ECDSA) Sign(privateKey *big.Int, message string) (*big.Int, *big.Int) {
 	rand.Seed(time.Now().UnixNano())
 	var (
 		r     big.Int
@@ -36,7 +36,7 @@ func (ec *ECDSA) Sign(privateKey big.Int, message string) (big.Int, big.Int) {
 			randK, _ = crypto.Int(crypto.Reader, new(big.Int).Sub(ec.Curve.N, GetInt(1)))
 
 			// 2. Compute kG = (x1, y1) and convert x1 to an integer x1
-			kG, err := ec.Curve.MulPoint(new(big.Int).Set(randK), ec.GenPoint)
+			kG, err := ec.Curve.MulPoint(Clone(randK), ec.GenPoint)
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -50,53 +50,51 @@ func (ec *ECDSA) Sign(privateKey big.Int, message string) (big.Int, big.Int) {
 
 		// 5. Compute SHA-1(m) and convert this bit string to an integer ec.
 		h := sha1.New()
-		_, _ = io.WriteString(h, message)
-		e := Hex2int(string(h.Sum(nil)))
+		h.Write([]byte(message))
+		e := Hex2int(hex.EncodeToString(h.Sum(nil)))
 
 		// 6. Compute 5 = k-1(ec + dr) mod n. If s = 0 then go to step 1.
 		// s = invK * (e + privateKey*r) % *ec.Curve.N
-		s.Mul(&privateKey, &r).Add(&s, e).Mul(&s, invK).Mod(&s, ec.Curve.N)
+		s.Mul(privateKey, &r).Add(&s, e).Mul(&s, invK).Mod(&s, ec.Curve.N)
 	}
 	// 7. A's signature for the message m is (r, s).
-	return r, s
+	return &r, &s
 }
 
-func (ec *ECDSA) Verify(publicKey Point, message string, r, s big.Int) bool {
+func (ec *ECDSA) Verify(publicKey Point, message string, r, s *big.Int) bool {
 	// 1. Verify that r and s are integers in the interval [1, n - 1].
-	if CheckInterval(&r, GetInt(1), new(big.Int).Sub(ec.Curve.N, GetInt(1))) ||
-		CheckInterval(&s, GetInt(1), new(big.Int).Sub(ec.Curve.N, GetInt(1))) {
+	if !CheckInterval(Clone(r), GetInt(1), new(big.Int).Sub(Clone(ec.Curve.N), GetInt(1))) ||
+		!CheckInterval(Clone(s), GetInt(1), new(big.Int).Sub(Clone(ec.Curve.N), GetInt(1))) {
 		return false
 	}
 
 	// 2. Compute SHA-1(m) and convert this bit string to an integer e
 	h := sha1.New()
-	_, _ = io.WriteString(h, message)
-	e := Hex2int(string(h.Sum(nil)))
+	h.Write([]byte(message))
+	e := Hex2int(hex.EncodeToString(h.Sum(nil)))
 
 	// 3. Compute w = s^-1 mod n.
-	// w, err := Modinv(s, *ec.Curve.N)
-	w := new(big.Int).ModInverse(&s, ec.Curve.N)
+	var w big.Int
+	w.ModInverse(Clone(s), Clone(ec.Curve.N))
 
 	// 4. Compute u1 = ew mod n and u2 = rw mod n.
-	// u1 := (e * w) % *ec.Curve.N
-	// u2 := (r * w) % *ec.Curve.N
 	var (
 		u1 big.Int
 		u2 big.Int
 	)
-	u1.Mul(e, w).Mod(&u1, ec.Curve.N)
-	u2.Mul(&r, w).Mod(&u1, ec.Curve.N)
+	u1.Mul(Clone(e), Clone(&w)).Mod(&u1, Clone(ec.Curve.N))
+	u2.Mul(Clone(r), Clone(&w)).Mod(&u2, Clone(ec.Curve.N))
 
 	// 5. Compute X = u1G + u2Q.
-	u1G, err := ec.Curve.MulPoint(&u1, ec.GenPoint)
+	u1G, err := ec.Curve.MulPoint(Clone(&u1), ec.GenPoint.Copy())
 	if err != nil {
 		log.Fatal(err)
 	}
-	u2G, err := ec.Curve.MulPoint(&u2, &publicKey)
+	u2G, err := ec.Curve.MulPoint(Clone(&u2), publicKey.Copy())
 	if err != nil {
 		log.Fatal(err)
 	}
-	pointX, err := ec.Curve.AddPoint(u1G, u2G)
+	pointX, err := ec.Curve.AddPoint(u1G.Copy(), u2G.Copy())
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -110,5 +108,5 @@ func (ec *ECDSA) Verify(publicKey Point, message string, r, s big.Int) bool {
 	v := new(big.Int).Mod(pointX.X, ec.Curve.N)
 
 	// 7. Accept the signature if and only if v = r.
-	return new(big.Int).Sub(v, &r).String() == "0"
+	return new(big.Int).Sub(v, r).String() == "0"
 }

@@ -15,6 +15,9 @@ func main() {
 
 	msg := "String ...."
 	r, s := sign.Sign(pk1, msg)
-	fmt.Println(sign.Verify(*pbk1, msg, r, s))
-	fmt.Println(sign.Verify(*pbk2, msg, r, s))
+	fmt.Println(sign.Verify(*pbk1.Copy(), msg, ecc.Clone(r), ecc.Clone(s)))
+	fmt.Println(sign.Verify(*pbk1.Copy(), msg, ecc.Clone(r), ecc.Clone(s)))
+	fmt.Println(sign.Verify(*pbk1.Copy(), msg, ecc.Clone(r), ecc.Clone(s)))
+	fmt.Println(sign.Verify(*pbk1.Copy(), msg, ecc.Clone(r), ecc.Clone(s)))
+	fmt.Println(sign.Verify(*pbk2.Copy(), msg, ecc.Clone(r), ecc.Clone(s)))
 }
