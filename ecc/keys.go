@@ -8,7 +8,7 @@ import (
 	"math/big"
 )
 
-func GetKeyPair(curve MontgomeryCurve) (*big.Int, *Point) {
+func GetKeyPair(curve *MontgomeryCurve) (*big.Int, *Point) {
 	pKey := genPrivateKey()
 	pubKey := getPublicKey(Clone(pKey), curve)
 	return pKey, pubKey
@@ -23,6 +23,6 @@ func genPrivateKey() *big.Int {
 	return Hex2int(hex.EncodeToString(seed))
 }
 
-func getPublicKey(d *big.Int, curve MontgomeryCurve) *Point {
+func getPublicKey(d *big.Int, curve *MontgomeryCurve) *Point {
 	return curve.G().Mul(d)
 }

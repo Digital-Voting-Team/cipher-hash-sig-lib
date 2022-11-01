@@ -20,11 +20,11 @@ func GetInt(val int64) *big.Int {
 }
 
 func CheckInterval(val, min, max *big.Int) bool {
-	if new(big.Int).Sub(Clone(val), Clone(min)).Sign() < 0 {
+	if new(big.Int).Sub(val, min).Sign() < 0 {
 		return false
 	}
 
-	if new(big.Int).Sub(Clone(max), Clone(val)).Sign() < 0 {
+	if new(big.Int).Sub(max, val).Sign() < 0 {
 		return false
 	}
 
@@ -32,17 +32,5 @@ func CheckInterval(val, min, max *big.Int) bool {
 }
 
 func Clone(int2 *big.Int) *big.Int {
-	// text, err := new(big.Int).Set(int2).MarshalText()
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-	// var copy_ big.Int
-	// cpy := make([]byte, len(text))
-	// copy(cpy, text)
-	// err = copy_.UnmarshalText(cpy)
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-	// return &copy_
 	return new(big.Int).Set(int2)
 }

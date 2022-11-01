@@ -307,12 +307,12 @@ func NewCurve25519() *MontgomeryCurve {
 	return &MontgomeryCurve{
 		Curve{
 			Name: "Curve25519",
-			A:    Clone(a),
-			B:    Clone(b),
-			P:    Clone(p),
-			N:    Clone(n),
-			GX:   Clone(gx),
-			GY:   Clone(gy),
+			A:    a,
+			B:    b,
+			P:    p,
+			N:    n,
+			GX:   gx,
+			GY:   gy,
 		},
 	}
 }

@@ -63,8 +63,8 @@ func (ec *ECDSA) Sign(privateKey *big.Int, message string) (*big.Int, *big.Int) 
 
 func (ec *ECDSA) Verify(publicKey Point, message string, r, s *big.Int) bool {
 	// 1. Verify that r and s are integers in the interval [1, n - 1].
-	if !CheckInterval(Clone(r), GetInt(1), new(big.Int).Sub(Clone(ec.Curve.N), GetInt(1))) ||
-		!CheckInterval(Clone(s), GetInt(1), new(big.Int).Sub(Clone(ec.Curve.N), GetInt(1))) {
+	if !CheckInterval(r, GetInt(1), new(big.Int).Sub(ec.Curve.N, GetInt(1))) ||
+		!CheckInterval(s, GetInt(1), new(big.Int).Sub(ec.Curve.N, GetInt(1))) {
 		return false
 	}
 
@@ -75,26 +75,26 @@ func (ec *ECDSA) Verify(publicKey Point, message string, r, s *big.Int) bool {
 
 	// 3. Compute w = s^-1 mod n.
 	var w big.Int
-	w.ModInverse(Clone(s), Clone(ec.Curve.N))
+	w.ModInverse(s, ec.Curve.N)
 
 	// 4. Compute u1 = ew mod n and u2 = rw mod n.
 	var (
 		u1 big.Int
 		u2 big.Int
 	)
-	u1.Mul(Clone(e), Clone(&w)).Mod(&u1, Clone(ec.Curve.N))
-	u2.Mul(Clone(r), Clone(&w)).Mod(&u2, Clone(ec.Curve.N))
+	u1.Mul(e, &w).Mod(&u1, ec.Curve.N)
+	u2.Mul(r, &w).Mod(&u2, ec.Curve.N)
 
 	// 5. Compute X = u1G + u2Q.
-	u1G, err := ec.Curve.MulPoint(Clone(&u1), ec.GenPoint.Copy())
+	u1G, err := ec.Curve.MulPoint(&u1, ec.GenPoint)
 	if err != nil {
 		log.Fatal(err)
 	}
-	u2G, err := ec.Curve.MulPoint(Clone(&u2), publicKey.Copy())
+	u2G, err := ec.Curve.MulPoint(&u2, &publicKey)
 	if err != nil {
 		log.Fatal(err)
 	}
-	pointX, err := ec.Curve.AddPoint(u1G.Copy(), u2G.Copy())
+	pointX, err := ec.Curve.AddPoint(u1G, u2G)
 	if err != nil {
 		log.Fatal(err)
 	}
